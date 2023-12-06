@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"net/http"
 	"one-api/common"
 	"one-api/model"
 	"strconv"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 type wechatLoginResponse struct {
@@ -73,8 +74,8 @@ func WeChatAuth(c *gin.Context) {
 		err := user.FillUserByWeChatId()
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
-				"success": false,
 				"message": err.Error(),
+				"success": false,
 			})
 			return
 		}
