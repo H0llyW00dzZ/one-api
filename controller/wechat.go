@@ -20,6 +20,22 @@ type wechatLoginResponse struct {
 	Data    string `json:"data"`
 }
 
+// Trusted domains list
+var trustedDomains = map[string]bool{
+	"api.wechat.com":    true,
+	"api.weixin.qq.com": true,
+	// Add other trusted domains here
+}
+
+func isTrustedURL(urlStr string) bool {
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return false
+	}
+	_, trusted := trustedDomains[parsedURL.Host]
+	return trusted
+}
+
 func getWeChatIdByCode(code string) (string, error) {
 	// Validate the code - this is a simple example, you'll need to adjust the regex to fit your actual code format
 	matched, err := regexp.MatchString(`^[a-zA-Z0-9]{10,}$`, code) // Fixed missing quote
@@ -33,8 +49,8 @@ func getWeChatIdByCode(code string) (string, error) {
 
 	// Use net/url to build the query safely
 	baseUrl, err := url.Parse(common.WeChatServerAddress)
-	if err != nil {
-		return "", err
+	if err != nil || !isTrustedURL(baseUrl.String()) {
+		return "", errors.New("untrusted server address")
 	}
 	// Ensure the base URL is a trusted endpoint to prevent SSRF
 	// You might want to check it against a list of allowed domains/URLs
