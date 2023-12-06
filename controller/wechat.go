@@ -22,8 +22,9 @@ type wechatLoginResponse struct {
 
 // Trusted domains list
 var trustedDomains = map[string]bool{
-	"api.wechat.com":    true,
-	"api.weixin.qq.com": true,
+	"api.wechat.com":           true,
+	"api.weixin.qq.com":        true,
+	common.WeChatServerAddress: true,
 	// Add other trusted domains here
 }
 
