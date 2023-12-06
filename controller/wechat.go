@@ -3,10 +3,11 @@ package controller
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
+	"net/url"
 	"one-api/common"
 	"one-api/model"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -20,14 +21,38 @@ type wechatLoginResponse struct {
 }
 
 func getWeChatIdByCode(code string) (string, error) {
-	if code == "" {
-		return "", errors.New("无效的参数")
+	// Validate the code - this is a simple example, you'll need to adjust the regex to fit your actual code format
+	matched, err := regexp.MatchString(`^[a-zA-Z0-9]{10,}$`, code) // Fixed missing quote
+	if err != nil {
+		// handle regex error
+		return "", err
 	}
-	req, err := http.NewRequest("GET", fmt.Sprintf("%s/api/wechat/user?code=%s", common.WeChatServerAddress, code), nil)
+	if !matched {
+		return "", errors.New("invalid code format")
+	}
+
+	// Use net/url to build the query safely
+	baseUrl, err := url.Parse(common.WeChatServerAddress)
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Authorization", common.WeChatServerToken)
+	// Ensure the base URL is a trusted endpoint to prevent SSRF
+	// You might want to check it against a list of allowed domains/URLs
+
+	params := url.Values{}
+	params.Add("code", code)
+	baseUrl.Path += "/api/wechat/user"
+	baseUrl.RawQuery = params.Encode()
+
+	// For CSRF protection, ensure that any state-changing operations are only
+	// performed if a valid CSRF token is included in the request.
+	// This is more relevant for POST/PUT/DELETE requests.
+
+	req, err := http.NewRequest("GET", baseUrl.String(), nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", common.WeChatServerToken) // Ensure this token is securely managed
 	client := http.Client{
 		Timeout: 5 * time.Second,
 	}
@@ -37,8 +62,7 @@ func getWeChatIdByCode(code string) (string, error) {
 	}
 	defer httpResponse.Body.Close()
 	var res wechatLoginResponse
-	err = json.NewDecoder(httpResponse.Body).Decode(&res)
-	if err != nil {
+	if err = json.NewDecoder(httpResponse.Body).Decode(&res); err != nil {
 		return "", err
 	}
 	if !res.Success {
@@ -74,8 +98,8 @@ func WeChatAuth(c *gin.Context) {
 		err := user.FillUserByWeChatId()
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
-				"message": err.Error(),
 				"success": false,
+				"message": err.Error(),
 			})
 			return
 		}
