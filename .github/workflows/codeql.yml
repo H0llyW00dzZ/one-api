@@ -48,7 +48,7 @@ jobs:
       fail-fast: false
       matrix:
         # this can be modified example if your repo is only python then remove 'javascript', 'go'
-        language: ['javascript-typescript', 'go']
+        language: ['javascript', 'go']
 
     steps:
       - name: Checkout repository
@@ -149,13 +149,13 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: Analysis_Result (SARIF + Encrypted)
-          path: ${{ runner.workspace }}/results/javascript.sarif.gpg
+          path: ${{ runner.workspace }}/results/${{ matrix.language }}.sarif.gpg
 
       - name: Check CodeQL Unit Testing status
         if: ${{github.event_name == 'pull_request' }}
         id: check-status
         run: |
-          if [ -f "${{ runner.workspace }}/results/javascript.sarif.gpg" ]; then
+          if [ -f "${{ runner.workspace }}/results/${{ matrix.language }}.sarif.gpg" ]; then
             echo "codeql_status=done" >> $GITHUB_STATE
             echo "codeql_status=done" >> $GITHUB_OUTPUT
             echo "pull_request_number=${{ github.event.pull_request.number }}" >> $GITHUB_STATE
