@@ -33,6 +33,10 @@ func isTrustedURL(urlStr string) bool {
 	if err != nil {
 		return false
 	}
+	// Check against the common address at runtime
+	if parsedURL.Host == url.Parse(common.WeChatServerAddress).Host {
+		return true
+	}
 	_, trusted := trustedDomains[parsedURL.Host]
 	return trusted
 }
