@@ -73,15 +73,15 @@ jobs:
       - name: Install Python dependencies
         if: ${{ matrix.language == 'python' && matrix.fileExists }}
         run: python -m pip install --upgrade pip && pip install -r requirements.txt
-
+        # github need to fix this confusing alias javascript-typescript, because in the end are javascript LMAO
       - name: Set up JavaScript/TypeScript
-        if: ${{ matrix.language == 'javascript-typescript' }}
+        if: ${{ matrix.language == 'javascript' }}
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-
+        # note: this useless only for compiled language
       - name: Install JavaScript/TypeScript dependencies
-        if: ${{ matrix.language == 'javascript-typescript' && matrix.fileExists }}
+        if: ${{ matrix.language == 'javascript' && matrix.fileExists }}
         run: npm ci
 
       - name: Set up Go
