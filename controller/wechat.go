@@ -21,6 +21,8 @@ type wechatLoginResponse struct {
 }
 
 // Trusted domains list
+// Note: this wechat not recommended to use, it potentially has security issues even without modifying the code
+// and this way maybe alternative fix for the security issues
 var trustedDomains = map[string]bool{
 	"api.wechat.com":           true,
 	"api.weixin.qq.com":        true,
