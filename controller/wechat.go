@@ -24,6 +24,10 @@ type wechatLoginResponse struct {
 }
 
 // Validate the WeChat server address and return the validated URL.
+// Note: This function is preventing Potential Issues such as SSRF Attacks,DDOS Attacks,
+// because of the input directly into network requests (Using gin in the backend)
+// without validation of target URL for wechat code such as content-type response from target URL,handling of response body, handling of status code,etc.
+// and this actually are critical security issues in production code.
 func ValidateWeChatServerAddress(address string) (*url.URL, error) {
 	if address == "" {
 		return nil, errors.New("WeChat server address is not set")
@@ -60,7 +64,7 @@ func getWeChatIdByCode(code string) (string, error) {
 	}
 
 	// Validate the WeChat server address before using it.
-	// so Attacker can't using SSRF to attack our server or using our server to attack other server.
+	// so Attacker can't using SSRF to attack our server or using our server to attack other server (e.g, DDOS Attack.).
 	validatedUrl, err := ValidateWeChatServerAddress(common.WeChatServerAddress)
 	if err != nil {
 		return "", fmt.Errorf("WeChat server address validation failed: %v", err)
