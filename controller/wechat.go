@@ -32,6 +32,9 @@ func getWeChatIdByCode(code string) (string, error) {
 		return "", fmt.Errorf("failed to parse WeChat server address: %v", err)
 	}
 
+	// Append only the path to the baseUrl
+	baseUrl.Path += "/api/wechat/user"
+
 	params := url.Values{}
 	params.Add("code", code)
 	baseUrl.RawQuery = params.Encode()
