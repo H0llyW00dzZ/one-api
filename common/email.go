@@ -97,7 +97,7 @@ func SendEmail(subject string, receiver string, content string) error {
 			return err
 		}
 	} else {
-		err = smtp.SendMail(addr, auth, SMTPFrom, to, mail)
+		err = smtp.SendMail(addr, auth, SMTPAccount, to, mail)
 	}
 	return err
 }
