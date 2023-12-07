@@ -3,12 +3,14 @@ package controller
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"one-api/common"
 	"one-api/model"
-	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -20,73 +22,56 @@ type wechatLoginResponse struct {
 	Data    string `json:"data"`
 }
 
-// Trusted domains list
-// Note: this wechat not recommended to use, it potentially has security issues even without modifying the code
-// and this way maybe alternative fix for the security issues
-var trustedDomains = map[string]bool{
-	"api.wechat.com":           true,
-	"api.weixin.qq.com":        true,
-	common.WeChatServerAddress: true,
-	// Add other trusted domains here
-}
-
-func isTrustedURL(urlStr string) bool {
-	parsedURL, err := url.Parse(urlStr)
-	if err != nil {
-		return false
-	}
-	// Check against the common address at runtime
-	if parsedURL.Host == common.WeChatServerAddress {
-		return true
-	}
-	_, trusted := trustedDomains[parsedURL.Host]
-	return trusted
-}
-
 func getWeChatIdByCode(code string) (string, error) {
-	// Validate the code - this is a simple example, you'll need to adjust the regex to fit your actual code format
-	matched, err := regexp.MatchString(`^[a-zA-Z0-9]{10,}$`, code) // Fixed missing quote
-	if err != nil {
-		// handle regex error
-		return "", err
-	}
-	if !matched {
-		return "", errors.New("invalid code format")
+	if code == "" {
+		return "", errors.New("invalid argument: code is empty")
 	}
 
-	// Use net/url to build the query safely
 	baseUrl, err := url.Parse(common.WeChatServerAddress)
-	if err != nil || !isTrustedURL(baseUrl.String()) {
-		return "", errors.New("untrusted server address")
+	if err != nil {
+		return "", fmt.Errorf("failed to parse WeChat server address: %v", err)
 	}
-	// Ensure the base URL is a trusted endpoint to prevent SSRF
-	// You might want to check it against a list of allowed domains/URLs
 
 	params := url.Values{}
 	params.Add("code", code)
-	baseUrl.Path += "/api/wechat/user"
 	baseUrl.RawQuery = params.Encode()
-
-	// For CSRF protection, ensure that any state-changing operations are only
-	// performed if a valid CSRF token is included in the request.
-	// This is more relevant for POST/PUT/DELETE requests.
 
 	req, err := http.NewRequest("GET", baseUrl.String(), nil)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create new request: %v", err)
 	}
-	req.Header.Set("Authorization", common.WeChatServerToken) // Ensure this token is securely managed
+	req.Header.Set("Authorization", common.WeChatServerToken)
 	client := http.Client{
 		Timeout: 5 * time.Second,
 	}
 	httpResponse, err := client.Do(req)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("request to WeChat server failed: %v", err)
 	}
 	defer httpResponse.Body.Close()
+
+	// Check if the status code indicates success
+	if httpResponse.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("request failed with status code: %d", httpResponse.StatusCode)
+	}
+
+	// Read the response body
+	bodyBytes, err := io.ReadAll(httpResponse.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	// Check the Content-Type to be sure we received JSON
+	contentType := httpResponse.Header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "application/json") {
+		return "", fmt.Errorf("expected JSON response but got Content-Type: %s", contentType)
+	}
+
+	// Attempt to unmarshal the response body into the expected JSON structure
 	var res wechatLoginResponse
-	if err = json.NewDecoder(httpResponse.Body).Decode(&res); err != nil {
-		return "", err
+	err = json.Unmarshal(bodyBytes, &res)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode JSON response: %v", err)
 	}
 	if !res.Success {
 		return "", errors.New(res.Message)
@@ -121,8 +106,8 @@ func WeChatAuth(c *gin.Context) {
 		err := user.FillUserByWeChatId()
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{
-				"success": false,
 				"message": err.Error(),
+				"success": false,
 			})
 			return
 		}
