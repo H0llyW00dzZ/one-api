@@ -8,13 +8,29 @@ import (
 	"net/smtp"
 	"strings"
 	"time"
+
+	"github.com/microcosm-cc/bluemonday"
 )
+
+// SanitizeSubject removes newlines and carriage returns from the subject
+func SanitizeSubject(subject string) string {
+	// Replace CR and LF characters with space
+	subject = strings.Replace(subject, "\r", " ", -1)
+	subject = strings.Replace(subject, "\n", " ", -1)
+	return subject
+}
 
 func SendEmail(subject string, receiver string, content string) error {
 	if SMTPFrom == "" { // for compatibility
 		SMTPFrom = SMTPAccount
 	}
-	encodedSubject := fmt.Sprintf("=?UTF-8?B?%s?=", base64.StdEncoding.EncodeToString([]byte(subject)))
+	// Sanitize the subject to prevent header injection
+	sanitizedSubject := SanitizeSubject(subject)
+	encodedSubject := fmt.Sprintf("=?UTF-8?B?%s?=", base64.StdEncoding.EncodeToString([]byte(sanitizedSubject)))
+
+	// Sanitize the content to prevent HTML/JS injection
+	p := bluemonday.UGCPolicy()
+	safeContent := p.Sanitize(content)
 
 	// Extract domain from SMTPFrom
 	parts := strings.Split(SMTPFrom, "@")
@@ -36,7 +52,7 @@ func SendEmail(subject string, receiver string, content string) error {
 		"Message-ID: %s\r\n"+ // add Message-ID header to avoid being treated as spam, RFC 5322
 		"Date: %s\r\n"+
 		"Content-Type: text/html; charset=UTF-8\r\n\r\n%s\r\n",
-		receiver, SystemName, SMTPFrom, encodedSubject, messageId, time.Now().Format(time.RFC1123Z), content))
+		receiver, SystemName, SMTPFrom, encodedSubject, messageId, time.Now().Format(time.RFC1123Z), safeContent))
 	auth := smtp.PlainAuth("", SMTPAccount, SMTPToken, SMTPServer)
 	addr := fmt.Sprintf("%s:%d", SMTPServer, SMTPPort)
 	to := strings.Split(receiver, ";")
@@ -46,12 +62,13 @@ func SendEmail(subject string, receiver string, content string) error {
 			InsecureSkipVerify: false,
 			ServerName:         SMTPServer,
 		}
-		conn, err := tls.Dial("tcp", fmt.Sprintf("%s:%d", SMTPServer, SMTPPort), tlsConfig)
+		conn, err := tls.Dial("tcp", addr, tlsConfig)
 		if err != nil {
 			return err
 		}
 		client, err := smtp.NewClient(conn, SMTPServer)
 		if err != nil {
+			conn.Close()
 			return err
 		}
 		defer client.Close()
@@ -61,9 +78,8 @@ func SendEmail(subject string, receiver string, content string) error {
 		if err = client.Mail(SMTPFrom); err != nil {
 			return err
 		}
-		receiverEmails := strings.Split(receiver, ";")
-		for _, receiver := range receiverEmails {
-			if err = client.Rcpt(receiver); err != nil {
+		for _, email := range to {
+			if err = client.Rcpt(email); err != nil {
 				return err
 			}
 		}
@@ -73,6 +89,7 @@ func SendEmail(subject string, receiver string, content string) error {
 		}
 		_, err = w.Write(mail)
 		if err != nil {
+			w.Close()
 			return err
 		}
 		err = w.Close()
