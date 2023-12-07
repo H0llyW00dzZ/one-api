@@ -23,19 +23,19 @@ type wechatLoginResponse struct {
 	Data    string `json:"data"`
 }
 
-// Validate the WeChat server address.
-func ValidateWeChatServerAddress(address string) error {
+// Validate the WeChat server address and return the validated URL.
+func ValidateWeChatServerAddress(address string) (*url.URL, error) {
 	if address == "" {
-		return errors.New("WeChat server address is not set")
+		return nil, errors.New("WeChat server address is not set")
 	}
 	parsedUrl, err := url.ParseRequestURI(address)
 	if err != nil {
-		return fmt.Errorf("WeChat server address is invalid: %v", err)
+		return nil, fmt.Errorf("WeChat server address is invalid: %v", err)
 	}
 
 	// Ensure that the address is HTTPS to avoid MITM attacks.
 	if parsedUrl.Scheme != "https" {
-		return errors.New("WeChat server address must use HTTPS")
+		return nil, errors.New("WeChat server address must use HTTPS")
 	}
 
 	// Whitelisting domains to avoid SSRF Attacks.
@@ -48,10 +48,10 @@ func ValidateWeChatServerAddress(address string) error {
 		}
 	}
 	if !isValidDomain {
-		return fmt.Errorf("WeChat server address is not in the list of allowed domains")
+		return nil, fmt.Errorf("WeChat server address is not in the list of allowed domains")
 	}
 
-	return nil
+	return parsedUrl, nil
 }
 
 func getWeChatIdByCode(code string) (string, error) {
@@ -61,23 +61,19 @@ func getWeChatIdByCode(code string) (string, error) {
 
 	// Validate the WeChat server address before using it.
 	// so Attacker can't using SSRF to attack our server or using our server to attack other server.
-	if err := ValidateWeChatServerAddress(common.WeChatServerAddress); err != nil {
+	validatedUrl, err := ValidateWeChatServerAddress(common.WeChatServerAddress)
+	if err != nil {
 		return "", fmt.Errorf("WeChat server address validation failed: %v", err)
 	}
 
-	baseUrl, err := url.Parse(common.WeChatServerAddress)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse WeChat server address: %v", err)
-	}
-
 	// Append only the path to the baseUrl
-	baseUrl.Path += "/api/wechat/user"
+	validatedUrl.Path += "/api/wechat/user"
 
 	params := url.Values{}
 	params.Add("code", code)
-	baseUrl.RawQuery = params.Encode()
+	validatedUrl.RawQuery = params.Encode()
 
-	req, err := http.NewRequest("GET", baseUrl.String(), nil)
+	req, err := http.NewRequest("GET", validatedUrl.String(), nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create new request: %v", err)
 	}
