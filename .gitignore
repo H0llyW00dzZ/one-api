@@ -7,3 +7,6 @@ build
 *.db-journal
 logs
 data
+# H0llyW00dzZ Builder + Experimental
+builder.sh
+one-api
