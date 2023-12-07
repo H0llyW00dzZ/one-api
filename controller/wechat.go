@@ -1,3 +1,4 @@
+// Gin + IO By H0llyW00dzZ
 package controller
 
 import (
@@ -22,9 +23,46 @@ type wechatLoginResponse struct {
 	Data    string `json:"data"`
 }
 
+// Validate the WeChat server address.
+func ValidateWeChatServerAddress(address string) error {
+	if address == "" {
+		return errors.New("WeChat server address is not set")
+	}
+	parsedUrl, err := url.ParseRequestURI(address)
+	if err != nil {
+		return fmt.Errorf("WeChat server address is invalid: %v", err)
+	}
+
+	// Ensure that the address is HTTPS to avoid MITM attacks.
+	if parsedUrl.Scheme != "https" {
+		return errors.New("WeChat server address must use HTTPS")
+	}
+
+	// Whitelisting domains to avoid SSRF Attacks.
+	allowedDomains := []string{"google.com", "go.dev"} // only need implement this line
+	isValidDomain := false
+	for _, domain := range allowedDomains {
+		if parsedUrl.Host == domain {
+			isValidDomain = true
+			break
+		}
+	}
+	if !isValidDomain {
+		return fmt.Errorf("WeChat server address is not in the list of allowed domains")
+	}
+
+	return nil
+}
+
 func getWeChatIdByCode(code string) (string, error) {
 	if code == "" {
 		return "", errors.New("invalid argument: code is empty")
+	}
+
+	// Validate the WeChat server address before using it.
+	// so Attacker can't using SSRF to attack our server or using our server to attack other server.
+	if err := ValidateWeChatServerAddress(common.WeChatServerAddress); err != nil {
+		return "", fmt.Errorf("WeChat server address validation failed: %v", err)
 	}
 
 	baseUrl, err := url.Parse(common.WeChatServerAddress)
