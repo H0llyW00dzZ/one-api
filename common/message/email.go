@@ -16,20 +16,28 @@ func shouldAuth() bool {
 	return config.SMTPAccount != "" || config.SMTPToken != ""
 }
 
+// formatHeloName formats a string to be HELO compatible:
+//   - Converts to lowercase (for English compatibility)
+//   - Replaces spaces with hyphens
+func formatHeloName(name string) string {
+	// Convert to lowercase and replace spaces with hyphens
+	return strings.ReplaceAll(strings.ToLower(name), " ", "-")
+}
+
 // getHeloName returns a HELO identifier combining system name and pod name
 func getHeloName() string {
 	// Get pod name from environment (Kubernetes sets this automatically)
 	podName := os.Getenv("HOSTNAME")
 
-	// Create a HELO-compatible string (replace spaces with hyphens)
-	systemName := strings.ReplaceAll(config.SystemName, " ", "-")
+	// Format the system name to be HELO compatible
+	formattedName := formatHeloName(config.SystemName)
 
 	if podName != "" {
-		return fmt.Sprintf("%s-%s", systemName, podName)
+		return fmt.Sprintf("%s-%s", formattedName, podName)
 	}
 
 	// Fallback if not running in Kubernetes
-	return systemName
+	return formattedName
 }
 
 // SendEmail sends an email with the given subject, receiver, and content
